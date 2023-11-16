@@ -125,7 +125,7 @@ def exibir_resultados(modelo, X_test, y_test):
 # Executar análise
 def executar_analise():
     global scaler  # Define a variável global antes de usá-la
-    nome_pasta = 'dataset'
+    nome_pasta = 'dataset2'
     dados_completos = pd.DataFrame()
 
     for nome_arquivo in os.listdir(nome_pasta):
