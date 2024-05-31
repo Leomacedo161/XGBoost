@@ -10,14 +10,6 @@ from sklearn.preprocessing import StandardScaler
 def carregar_dados(nome_arquivo):
     return pd.read_csv(nome_arquivo)
 
-# Criar novas features
-def criar_features(data):
-    data['Soma'] = data['Valor1'] + data['Valor2']
-    data['Diferenca'] = data['Valor1'] - data['Valor2']
-    data['Produto'] = data['Valor1'] * data['Valor2']
-    data['Razao'] = data['Valor1'] / (data['Valor2'] + 1e-5)  # Adicionar um pequeno valor para evitar divisão por zero
-    return data
-
 # Treinar o modelo de XGBoost com ajuste de hiperparâmetros
 def treinar_modelo(X, y):
     param_grid = {
@@ -52,11 +44,11 @@ def plotar_resultados(y_test, y_pred):
 
 # Calcular o índice de acertos com tolerância ajustada
 def calcular_indice_acertos(y_test, y_pred, operacao):
-    if operacao == 'soma' or operacao == 'subtracao':
+    if operacao == 0 or operacao == 1:
         tolerancia = 2
-    elif operacao == 'multiplicacao':
+    elif operacao == 2:
         tolerancia = 5
-    elif operacao == 'divisao':
+    elif operacao == 3:
         tolerancia = 3
     else:
         tolerancia = 0
@@ -80,48 +72,70 @@ def plotar_acertos_erros(acertos_total, erros_total):
 
 # Main
 def main_ml():
-    # Nome do arquivo a ser processado
+    # Carregar os dados do arquivo único
     nome_arquivo = 'datasetUnico/soma.csv'
-    
-    # Carregar os dados
     data = carregar_dados(nome_arquivo)
     
-    # Criar novas features
-    data = criar_features(data)
+    r2_list = []
+    mae_list = []
+    mse_list = []
+    indice_acertos_list = []
+    learning_rates = []
     
-    # Dividir os dados em features (X) e target (y)
-    X = data[['Valor1', 'Valor2', 'Soma', 'Diferenca', 'Produto', 'Razao']]
-    y = data['Resultado']
+    acertos_total = 0
+    erros_total = 0
+
+    # Filtrar e treinar o modelo para cada operação
+    for operacao in range(4):
+        data_operacao = data[data['Codigo_Operador'] == operacao]
+        
+        # Dividir os dados em features (X) e target (y)
+        X = data_operacao[['Valor1', 'Codigo_Operador', 'Valor2']]
+        y = data_operacao['Resultado']
+        
+        # Normalizar os dados
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        # Dividir os dados em treino e teste
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+        
+        # Treinar o modelo
+        model, learning_rate = treinar_modelo(X_train, y_train)
+        
+        # Avaliar o modelo
+        r2, mae, mse, y_pred = avaliar_modelo(model, X_test, y_test)
+        
+        # Calcular o índice de acertos com tolerância ajustada
+        indice_acertos, acertos, erros = calcular_indice_acertos(y_test, y_pred, operacao)
+        
+        # Armazenar as métricas
+        r2_list.append(r2)
+        mae_list.append(mae)
+        mse_list.append(mse)
+        indice_acertos_list.append(indice_acertos)
+        learning_rates.append(learning_rate)
+        
+        # Acumular acertos e erros
+        acertos_total += acertos
+        erros_total += erros
+
+    # Calcular a média das métricas
+    media_r2 = np.mean(r2_list)
+    media_mae = np.mean(mae_list)
+    media_mse = np.mean(mse_list)
+    media_indice_acertos = np.mean(indice_acertos_list)
+    media_learning_rate = np.mean(learning_rates)
     
-    # Normalizar os dados
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    
-    # Dividir os dados em treino e teste
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-    
-    # Treinar o modelo
-    model, learning_rate = treinar_modelo(X_train, y_train)
-    
-    # Avaliar o modelo
-    r2, mae, mse, y_pred = avaliar_modelo(model, X_test, y_test)
-    
-    # Definir uma tolerância única ou ajustar conforme necessário
-    operacao = 'mixed'  # Operação mista
-    indice_acertos, acertos, erros = calcular_indice_acertos(y_test, y_pred, operacao)
-    
-    # Imprimir as métricas de avaliação
-    print(f"R^2: {r2}")
-    print(f"MAE: {mae}")
-    print(f"MSE: {mse}")
-    print(f"Índice de Acertos: {indice_acertos}")
-    print(f"Learning Rate: {learning_rate}")
-    
-    # Plotar resultados reais vs preditos
-    plotar_resultados(y_test, y_pred)
+    # Imprimir as métricas médias
+    print(f"Média R^2: {media_r2}")
+    print(f"Média MAE: {media_mae}")
+    print(f"Média MSE: {media_mse}")
+    print(f"Média Índice de Acertos: {media_indice_acertos}")
+    print(f"Média Learning Rate: {media_learning_rate}")
     
     # Plotar gráfico de acertos e erros
-    plotar_acertos_erros(acertos, erros)
+    plotar_acertos_erros(acertos_total, erros_total)
 
 if __name__ == "__main__":
     main_ml()

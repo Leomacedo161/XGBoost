@@ -10,14 +10,6 @@ from sklearn.preprocessing import StandardScaler
 def carregar_dados(nome_arquivo):
     return pd.read_csv(nome_arquivo)
 
-# Criar novas features
-def criar_features(data):
-    data['Soma'] = data['Valor1'] + data['Valor2']
-    data['Diferenca'] = data['Valor1'] - data['Valor2']
-    data['Produto'] = data['Valor1'] * data['Valor2']
-    data['Razao'] = data['Valor1'] / (data['Valor2'] + 1e-5)  # Adicionar um pequeno valor para evitar divisão por zero
-    return data
-
 # Treinar o modelo de XGBoost com ajuste de hiperparâmetros
 def treinar_modelo(X, y):
     param_grid = {
@@ -52,11 +44,11 @@ def plotar_resultados(y_test, y_pred):
 
 # Calcular o índice de acertos com tolerância ajustada
 def calcular_indice_acertos(y_test, y_pred, operacao):
-    if operacao == 'soma' or operacao == 'subtracao':
+    if operacao == 0 or operacao == 1:
         tolerancia = 2
-    elif operacao == 'multiplicacao':
+    elif operacao == 2:
         tolerancia = 5
-    elif operacao == 'divisao':
+    elif operacao == 3:
         tolerancia = 3
     else:
         tolerancia = 0
@@ -82,10 +74,10 @@ def plotar_acertos_erros(acertos_total, erros_total):
 def main_ml():
     # Lista de arquivos para processar e suas operações correspondentes
     arquivos_operacoes = [
-        ('datasetLista/soma.csv', 'soma'),
-        ('datasetLista/subtracao.csv', 'subtracao'),
-        ('datasetLista/multiplicacao.csv', 'multiplicacao'),
-        ('datasetLista/divisao.csv', 'divisao')
+        ('datasetLista/soma.csv', 0),
+        ('datasetLista/subtracao.csv', 1),
+        ('datasetLista/multiplicacao.csv', 2),
+        ('datasetLista/divisao.csv', 3)
     ]
     
     r2_list = []
@@ -101,11 +93,8 @@ def main_ml():
         # Carregar os dados
         data = carregar_dados(nome_arquivo)
         
-        # Criar novas features
-        data = criar_features(data)
-        
         # Dividir os dados em features (X) e target (y)
-        X = data[['Valor1', 'Valor2', 'Soma', 'Diferenca', 'Produto', 'Razao']]
+        X = data[['Valor1', 'Codigo_Operador', 'Valor2']]
         y = data['Resultado']
         
         # Normalizar os dados
