@@ -1,139 +1,156 @@
-import os
 import pandas as pd
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, GridSearchCV
+from xgboost import XGBRegressor
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
 
-# Carregar os dados
-def carregar_dados(caminho_arquivo):
-    return pd.read_csv(caminho_arquivo)
+# Carregar os dados gerados
+def carregar_dados(nome_arquivo):
+    return pd.read_csv(nome_arquivo)
 
-# Treinar o modelo
-def treinar_modelo(dados, param_grid, model_type='decision_tree'):
-    X = dados[['Valor1', 'Codigo_Operador', 'Valor2']]
-    y = dados['Resultado']
+# Criar novas features
+def criar_features(data):
+    data['Soma'] = data['Valor1'] + data['Valor2']
+    data['Diferenca'] = data['Valor1'] - data['Valor2']
+    data['Produto'] = data['Valor1'] * data['Valor2']
+    data['Razao'] = data['Valor1'] / (data['Valor2'] + 1e-5)  # Adicionar um pequeno valor para evitar divisão por zero
+    return data
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Treinar o modelo de XGBoost com ajuste de hiperparâmetros
+def treinar_modelo(X, y):
+    param_grid = {
+        'n_estimators': [100, 200, 300],
+        'learning_rate': [0.01, 0.1, 0.2],
+        'max_depth': [3, 5, 7],
+        'min_child_weight': [1, 3, 5],
+        'subsample': [0.6, 0.8, 1.0]
+    }
+    xgb = XGBRegressor(random_state=42)
+    grid_search = GridSearchCV(estimator=xgb, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2)
+    grid_search.fit(X, y)
+    return grid_search.best_estimator_, grid_search.best_params_['learning_rate']
 
-    # Normalização dos dados
-    scaler = StandardScaler()
-    
-    if model_type == 'decision_tree':
-        from sklearn.tree import DecisionTreeRegressor
-        model = DecisionTreeRegressor(random_state=42)
-    elif model_type == 'random_forest':
-        model = RandomForestRegressor(random_state=42)
-    elif model_type == 'gradient_boosting':
-        model = GradientBoostingRegressor(random_state=42)
-    
-    pipeline = Pipeline([('scaler', scaler), ('model', model)])
-    grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring='neg_mean_squared_error', error_score='raise')
-    grid_search.fit(X_train, y_train)
-
-    # Melhores hiperparâmetros
-    print(f"\nMelhores Hiperparâmetros para {model_type.replace('_', ' ').title()}: {grid_search.best_params_}")
-
-    # Treinamento do modelo com os melhores hiperparâmetros
-    modelo = grid_search.best_estimator_
-
-    # Avaliação do modelo nos dados de teste
-    y_pred_test = modelo.predict(X_test)
-
-    # Avaliação de métricas nos dados de teste
-    mae_test = mean_absolute_error(y_test, y_pred_test)
-    mse_test = mean_squared_error(y_test, y_pred_test)
-    r2_test = r2_score(y_test, y_pred_test)
-
-    print(f"\nErro Absoluto Médio (MAE) nos dados de teste: {mae_test:.2f}")
-    print(f"Erro Quadrático Médio (MSE) nos dados de teste: {mse_test:.2f}")
-    print(f"Coeficiente de Determinação (R^2) nos dados de teste: {r2_test:.2f}")
-
-    return modelo, X_test, y_test
-
-# Prever manualmente
-def prever_manualmente(modelo):
-    while True:
-        print("\nPrever Manualmente:")
-        valor1 = float(input("Digite o Valor1: "))
-        codigo_operador = int(input("Digite o Codigo_Operador: "))
-        valor2 = float(input("Digite o Valor2: "))
-
-        entrada = [[valor1, codigo_operador, valor2]]
-        previsao = modelo.predict(entrada)[0]
-        print(f"\nA previsão do modelo é: {previsao}")
-
-        continuar = input("Deseja continuar? (Digite 's' para sair): ").lower()
-        if continuar == 's':
-            break
-
-# Exibir resultados
-def exibir_resultados(modelo, X_test, y_test):
-    y_pred = modelo.predict(X_test)
-
-    # Avaliação de métricas
+# Avaliar o modelo
+def avaliar_modelo(model, X_test, y_test):
+    y_pred = model.predict(X_test)
+    r2 = r2_score(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
     mse = mean_squared_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
+    return r2, mae, mse, y_pred
 
-    # Contagem de valores corretos e incorretos
-    valores_corretos = sum((y_test - y_pred) ** 2 == 0)
-    valores_incorretos = len(y_test) - valores_corretos
-
-    # Porcentagem de acertos
-    porcentagem_acertos = (valores_corretos / len(y_test)) * 100
-
-    print(f"\nErro Absoluto Médio (MAE): {mae:.2f}")
-    print(f"Erro Quadrático Médio (MSE): {mse:.2f}")
-    print(f"Coeficiente de Determinação (R^2): {r2:.2f}")
-    print(f"Valores Corretos: {valores_corretos}")
-    print(f"Valores Incorretos: {valores_incorretos}")
-    print(f"Porcentagem de Acertos: {porcentagem_acertos:.2f}%")
-
-    # Gráfico de dispersão com regressão linear
-    plt.scatter(y_test, y_pred, color='blue', alpha=0.5)
-    plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], linestyle='--', color='red', linewidth=2)
-    plt.title('Valores Reais vs. Valores Previstos')
-    plt.xlabel('Real')
-    plt.ylabel('Previsto')
+# Plotar os resultados
+def plotar_resultados(y_test, y_pred):
+    plt.figure(figsize=(10, 6))
+    plt.scatter(y_test, y_pred, edgecolors=(0, 0, 0))
+    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+    plt.xlabel('Valores Reais')
+    plt.ylabel('Valores Preditos')
+    plt.title('Valores Reais vs. Valores Preditos')
     plt.show()
 
-    # Cálculo da variação natural dos dados
-    amplitude_dados = y_test.max() - y_test.min()
-    print(f"Amplitude (Variação Natural) dos Dados: {amplitude_dados:.2f}")
+# Calcular o índice de acertos com tolerância ajustada
+def calcular_indice_acertos(y_test, y_pred, operacao):
+    if operacao == 'soma' or operacao == 'subtracao':
+        tolerancia = 2
+    elif operacao == 'multiplicacao':
+        tolerancia = 5
+    elif operacao == 'divisao':
+        tolerancia = 3
+    else:
+        tolerancia = 0
+    
+    acertos = np.sum(np.isclose(y_test, y_pred, atol=tolerancia))
+    erros = len(y_test) - acertos
+    indice_acertos = acertos / len(y_test)
+    return indice_acertos, acertos, erros
 
-# Executar análise
-def executar_analise():
-    nome_pasta = 'datasetLista'
-    dados_completos = pd.DataFrame()
+# Plotar gráfico de acertos e erros
+def plotar_acertos_erros(acertos_total, erros_total):
+    labels = ['Acertos', 'Erros']
+    valores = [acertos_total, erros_total]
+    
+    plt.figure(figsize=(10, 6))
+    plt.bar(labels, valores, color=['blue', 'red'])
+    plt.xlabel('Categoria')
+    plt.ylabel('Quantidade')
+    plt.title('Total de Acertos e Erros')
+    plt.show()
 
-    for nome_arquivo in os.listdir(nome_pasta):
-        if nome_arquivo.endswith('.csv'):
-            caminho_arquivo = os.path.join(nome_pasta, nome_arquivo)
-            dados = carregar_dados(caminho_arquivo)
-            dados_completos = pd.concat([dados_completos, dados], ignore_index=True)
+# Main
+def main_ml():
+    # Lista de arquivos para processar e suas operações correspondentes
+    arquivos_operacoes = [
+        ('datasetLista/soma.csv', 'soma'),
+        ('datasetLista/subtracao.csv', 'subtracao'),
+        ('datasetLista/multiplicacao.csv', 'multiplicacao'),
+        ('datasetLista/divisao.csv', 'divisao')
+    ]
+    
+    r2_list = []
+    mae_list = []
+    mse_list = []
+    indice_acertos_list = []
+    learning_rates = []
+    
+    acertos_total = 0
+    erros_total = 0
 
-    # Definir grid de hiperparâmetros
-    param_grid = {
-        'model__max_depth': [None, 5, 10],
-        'model__min_samples_split': [2, 5],
-        'model__min_samples_leaf': [1, 2],
-        'model__max_features': ['sqrt', 'log2'],
-        'model__max_leaf_nodes': [None, 5, 10],
-        'model__ccp_alpha': [0.0, 0.01]
-    }
+    for nome_arquivo, operacao in arquivos_operacoes:
+        # Carregar os dados
+        data = carregar_dados(nome_arquivo)
+        
+        # Criar novas features
+        data = criar_features(data)
+        
+        # Dividir os dados em features (X) e target (y)
+        X = data[['Valor1', 'Valor2', 'Soma', 'Diferenca', 'Produto', 'Razao']]
+        y = data['Resultado']
+        
+        # Normalizar os dados
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        # Dividir os dados em treino e teste
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+        
+        # Treinar o modelo
+        model, learning_rate = treinar_modelo(X_train, y_train)
+        
+        # Avaliar o modelo
+        r2, mae, mse, y_pred = avaliar_modelo(model, X_test, y_test)
+        
+        # Calcular o índice de acertos com tolerância ajustada
+        indice_acertos, acertos, erros = calcular_indice_acertos(y_test, y_pred, operacao)
+        
+        # Armazenar as métricas
+        r2_list.append(r2)
+        mae_list.append(mae)
+        mse_list.append(mse)
+        indice_acertos_list.append(indice_acertos)
+        learning_rates.append(learning_rate)
+        
+        # Acumular acertos e erros
+        acertos_total += acertos
+        erros_total += erros
 
-    # Treinar e avaliar modelos
-    for model_type in ['decision_tree', 'random_forest', 'gradient_boosting']:
-        print(f"\nTreinando modelo: {model_type.replace('_', ' ').title()}")
-        modelo, X_test, y_test = treinar_modelo(dados_completos.sample(frac=0.8, random_state=42), param_grid, model_type)
-        print(f"\nResultados para {model_type.replace('_', ' ').title()}:")
-        exibir_resultados(modelo, X_test, y_test)
-
-        # Prever manualmente após o treinamento
-        prever_manualmente(modelo)
+    # Calcular a média das métricas
+    media_r2 = np.mean(r2_list)
+    media_mae = np.mean(mae_list)
+    media_mse = np.mean(mse_list)
+    media_indice_acertos = np.mean(indice_acertos_list)
+    media_learning_rate = np.mean(learning_rates)
+    
+    # Imprimir as métricas médias
+    print(f"Média R^2: {media_r2}")
+    print(f"Média MAE: {media_mae}")
+    print(f"Média MSE: {media_mse}")
+    print(f"Média Índice de Acertos: {media_indice_acertos}")
+    print(f"Média Learning Rate: {media_learning_rate}")
+    
+    # Plotar gráfico de acertos e erros
+    plotar_acertos_erros(acertos_total, erros_total)
 
 if __name__ == "__main__":
-    executar_analise()
+    main_ml()

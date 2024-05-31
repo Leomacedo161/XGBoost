@@ -7,13 +7,13 @@ from multiprocessing import Pool
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def gerar_questoes(codigo_operador, num_questoes=4000, seed=None):
+def gerar_questoes(codigo_operador, num_questoes=40000, seed=None):
     if seed is not None:
         random.seed(seed)  # Definir semente para reprodutibilidade
     questoes = set()
     while len(questoes) < num_questoes:
-        valor1 = random.randint(1, 10000)
-        valor2 = random.randint(1, 10000)
+        valor1 = random.randint(1, 100)
+        valor2 = random.randint(1, 100)
         resultado = calcular_resultado(valor1, valor2, codigo_operador)
         questao = (valor1, codigo_operador, valor2, resultado)
         questoes.add(questao)
@@ -44,7 +44,7 @@ def salvar_em_csv(questoes, codigo_operador, pasta='datasetLista'):
         csvwriter.writerows(questoes)
     logging.info(f"{nome_arquivo} criado com sucesso.")
 
-def gerar_questoes_mistas(num_questoes_por_operador=1000, seed=None):
+def gerar_questoes_mistas(num_questoes_por_operador=10000, seed=None):
     questoes_mistas = set()
     for codigo_operador in range(4):
         questoes = gerar_questoes(codigo_operador, num_questoes_por_operador, seed)
@@ -57,7 +57,7 @@ def processar_operador(args):
     salvar_em_csv(questoes, codigo_operador)
 
 def main():
-    num_questoes_por_operador = 1000
+    num_questoes_por_operador = 10000
     seed = 42  # Define a semente para reprodutibilidade
 
     # Criar datasets separados por operador

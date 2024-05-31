@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.model_selection import train_test_split, GridSearchCV
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
@@ -30,7 +30,7 @@ def treinar_modelo(X, y):
     xgb = XGBRegressor(random_state=42)
     grid_search = GridSearchCV(estimator=xgb, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2)
     grid_search.fit(X, y)
-    return grid_search.best_estimator_
+    return grid_search.best_estimator_, grid_search.best_params_['learning_rate']
 
 # Avaliar o modelo
 def avaliar_modelo(model, X_test, y_test):
@@ -51,16 +51,39 @@ def plotar_resultados(y_test, y_pred):
     plt.show()
 
 # Calcular o índice de acertos com tolerância ajustada
-def calcular_indice_acertos(y_test, y_pred, tolerancia=100):
+def calcular_indice_acertos(y_test, y_pred, operacao):
+    if operacao == 'soma' or operacao == 'subtracao':
+        tolerancia = 2
+    elif operacao == 'multiplicacao':
+        tolerancia = 5
+    elif operacao == 'divisao':
+        tolerancia = 3
+    else:
+        tolerancia = 0
+    
     acertos = np.sum(np.isclose(y_test, y_pred, atol=tolerancia))
     erros = len(y_test) - acertos
     indice_acertos = acertos / len(y_test)
     return indice_acertos, acertos, erros
 
+# Plotar gráfico de acertos e erros
+def plotar_acertos_erros(acertos_total, erros_total):
+    labels = ['Acertos', 'Erros']
+    valores = [acertos_total, erros_total]
+    
+    plt.figure(figsize=(10, 6))
+    plt.bar(labels, valores, color=['blue', 'red'])
+    plt.xlabel('Categoria')
+    plt.ylabel('Quantidade')
+    plt.title('Total de Acertos e Erros')
+    plt.show()
+
 # Main
 def main_ml():
+    # Nome do arquivo a ser processado
+    nome_arquivo = 'datasetUnico/soma.csv'
+    
     # Carregar os dados
-    nome_arquivo = 'datasetLista/soma.csv'  # Exemplo para o operador soma
     data = carregar_dados(nome_arquivo)
     
     # Criar novas features
@@ -78,30 +101,27 @@ def main_ml():
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
     
     # Treinar o modelo
-    model = treinar_modelo(X_train, y_train)
+    model, learning_rate = treinar_modelo(X_train, y_train)
     
     # Avaliar o modelo
     r2, mae, mse, y_pred = avaliar_modelo(model, X_test, y_test)
     
-    # Validação cruzada para verificar a generalização do modelo
-    cv_scores = cross_val_score(model, X_scaled, y, cv=5, scoring='r2')
-    print(f"Cross-Validation R^2 Scores: {cv_scores}")
-    print(f"Mean Cross-Validation R^2: {cv_scores.mean()}")
+    # Definir uma tolerância única ou ajustar conforme necessário
+    operacao = 'mixed'  # Operação mista
+    indice_acertos, acertos, erros = calcular_indice_acertos(y_test, y_pred, operacao)
     
-    # Plotar os resultados
-    plotar_resultados(y_test, y_pred)
-    
-    # Calcular o índice de acertos com tolerância ajustada
-    tolerancia = 100  # Ajustar a tolerância para um valor mais razoável
-    indice_acertos, acertos, erros = calcular_indice_acertos(y_test, y_pred, tolerancia)
-    
-    # Imprimir as métricas
+    # Imprimir as métricas de avaliação
     print(f"R^2: {r2}")
     print(f"MAE: {mae}")
     print(f"MSE: {mse}")
     print(f"Índice de Acertos: {indice_acertos}")
-    print(f"Quantidade de Acertos: {acertos}")
-    print(f"Quantidade de Erros: {erros}")
+    print(f"Learning Rate: {learning_rate}")
+    
+    # Plotar resultados reais vs preditos
+    plotar_resultados(y_test, y_pred)
+    
+    # Plotar gráfico de acertos e erros
+    plotar_acertos_erros(acertos, erros)
 
 if __name__ == "__main__":
     main_ml()
