@@ -7,9 +7,7 @@ from multiprocessing import Pool
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def gerar_questoes(codigo_operador, num_questoes=40000, seed=None):
-    if seed is not None:
-        random.seed(seed)  # Definir semente para reprodutibilidade
+def gerar_questoes(codigo_operador, num_questoes=40000):
     questoes = set()
     while len(questoes) < num_questoes:
         valor1 = random.randint(1, 100)
@@ -44,24 +42,23 @@ def salvar_em_csv(questoes, codigo_operador, pasta='datasetLista'):
         csvwriter.writerows(questoes)
     logging.info(f"{nome_arquivo} criado com sucesso.")
 
-def gerar_questoes_mistas(num_questoes_por_operador=10000, seed=None):
+def gerar_questoes_mistas(num_questoes_por_operador=10000):
     questoes_mistas = set()
     for codigo_operador in range(4):
-        questoes = gerar_questoes(codigo_operador, num_questoes_por_operador, seed)
+        questoes = gerar_questoes(codigo_operador, num_questoes_por_operador)
         questoes_mistas.update(questoes)
     return questoes_mistas
 
 def processar_operador(args):
-    codigo_operador, num_questoes_por_operador, seed = args
-    questoes = gerar_questoes(codigo_operador, num_questoes_por_operador, seed)
+    codigo_operador, num_questoes_por_operador = args
+    questoes = gerar_questoes(codigo_operador, num_questoes_por_operador)
     salvar_em_csv(questoes, codigo_operador)
 
 def main():
     num_questoes_por_operador = 10000
-    seed = 42  # Define a semente para reprodutibilidade
 
     # Criar datasets separados por operador
-    args = [(codigo_operador, num_questoes_por_operador, seed) for codigo_operador in range(4)]
+    args = [(codigo_operador, num_questoes_por_operador) for codigo_operador in range(4)]
     with Pool(processes=4) as pool:
         pool.map(processar_operador, args)
 
@@ -70,8 +67,8 @@ def main():
     if not os.path.exists(pasta_mista):
         os.makedirs(pasta_mista)
 
-    questoes_mistas = gerar_questoes_mistas(num_questoes_por_operador, seed)
+    questoes_mistas = gerar_questoes_mistas(num_questoes_por_operador)
     salvar_em_csv(questoes_mistas, 0, pasta_mista)  # 0 é apenas um código fictício para questões mistas
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

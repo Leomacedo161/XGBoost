@@ -135,7 +135,10 @@ def main_ml():
     print(f"Média Learning Rate: {media_learning_rate}")
     
     # Plotar gráfico de acertos e erros
-    plotar_acertos_erros(acertos_total, erros_total)
+    # plotar_acertos_erros(acertos_total, erros_total)
+
+    # Retornar as métricas médias
+    return media_r2, media_mae, media_mse, media_indice_acertos, media_learning_rate
 
 if __name__ == "__main__":
     main_ml()
